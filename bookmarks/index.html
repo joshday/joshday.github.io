@@ -103,6 +103,10 @@
   mark { background: rgba(200,32,44,0.16); color: inherit; border-radius: 2px; }
   .empty { color: var(--neutral-500); padding: 32px 0; }
   .hint { margin-top: 22px; }
+  #repos a { color: var(--red-500); text-decoration: none; }
+  #repos a:hover { text-decoration: underline; }
+  #tok { display: flex; gap: 6px; margin-top: 8px; }
+  #tok input { width: 420px; }
   kbd {
     font-family: var(--font-mono); font-size: 11px; background: var(--neutral-50);
     border: 1px solid var(--neutral-200); border-radius: 4px; padding: 1px 5px; color: var(--neutral-600);
@@ -127,11 +131,18 @@
   </header>
   <div id="out"></div>
   <p class="sub hint"><kbd>/</kbd> filter &nbsp; <kbd>enter</kbd> open first &nbsp; <kbd>esc</kbd> clear</p>
+  <p class="sub" id="repos"><span id="repos-msg">Loading repos…</span> &nbsp;·&nbsp; <a href="#" id="repos-refresh">refresh</a> &nbsp;·&nbsp; <a href="#" id="tok-toggle">add token</a></p>
+  <form id="tok" hidden>
+    <input id="tok-in" type="password" placeholder="GitHub token (classic, repo scope) — stored in this browser only" autocomplete="off">
+    <button type="submit" class="toggle">Save</button>
+    <button type="button" class="toggle" id="tok-clear">Clear</button>
+  </form>
 </div>
 
 <script src="bookmarks-data.js"></script>
 <script>
   const $q = document.getElementById("q"), $sort = document.getElementById("sort"), $grouped = document.getElementById("grouped");
+  const $msg = document.getElementById("repos-msg"), $tok = document.getElementById("tok"), $tokIn = document.getElementById("tok-in"), $tokToggle = document.getElementById("tok-toggle");
   let sortBy = "default", grouped = true;
   const host = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
   const esc = s => s.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
@@ -141,12 +152,59 @@
     return t.slice(0, i) + "<mark>" + t.slice(i, i + q.length) + "</mark>" + t.slice(i + q.length);
   };
 
+  // GitHub repos across ORGS, merged into the list as group "Repos" (shown only while filtering).
+  // Cached in localStorage for REPO_TTL; a token (also localStorage) adds private repos.
+  const ORGS = ["RallypointOne", "DerangedIons", "NSF-ASCEND-Engine"];
+  const REPO_TTL = 60 * 60 * 1000;
+  const ls = {
+    get: k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+    set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  };
+  let repos = [];
+
   const order = [];
-  const items = (typeof BOOKMARKS === "undefined" ? [] : BOOKMARKS).map((b, i) => ({
-    ...b, i, group: b.group || "Other", domain: host(b.url),
-    g: (g => (order.includes(g) || order.push(g), order.indexOf(g)))(b.group || "Other"),
-    hay: [b.name, b.url, b.group, ...(b.tags || []), b.note || ""].join(" ").toLowerCase(),
-  }));
+  let items = [];
+  function build() {
+    items = [...(typeof BOOKMARKS === "undefined" ? [] : BOOKMARKS), ...repos].map((b, i) => ({
+      ...b, i, group: b.group || "Other", domain: host(b.url),
+      g: (g => (order.includes(g) || order.push(g), order.indexOf(g)))(b.group || "Other"),
+      hay: [b.name, b.url, b.group, ...(b.tags || []), b.note || ""].join(" ").toLowerCase(),
+    }));
+    render();
+  }
+
+  async function fetchOrg(org, headers) {
+    const out = [];
+    for (let page = 1; ; page++) {
+      const r = await fetch(`https://api.github.com/orgs/${org}/repos?per_page=100&page=${page}`, { headers });
+      if (!r.ok) throw new Error(`${org}: HTTP ${r.status}${r.status === 401 ? " (bad token)" : ""}`);
+      const j = await r.json(); out.push(...j);
+      if (j.length < 100) return out;
+    }
+  }
+  function repoStatus(c) {
+    const priv = c.list.filter(r => r.tags.includes("private")).length, m = Math.round((Date.now() - c.t) / 60000);
+    $msg.textContent = `${c.list.length} repos across ${ORGS.join(", ")} (${priv} private) · type to search · updated ${m < 1 ? "just now" : m + "m ago"}`;
+  }
+  async function loadRepos(force) {
+    const cache = ls.get("repos"), token = ls.get("gh_token");
+    $tokToggle.textContent = token ? "token ✓" : "add token";
+    if (cache) { repos = cache.list; build(); }
+    if (cache && !force && Date.now() - cache.t < REPO_TTL) return repoStatus(cache);
+    $msg.textContent = "Loading repos…";
+    try {
+      const headers = token ? { Authorization: "Bearer " + token } : {};
+      const all = (await Promise.all(ORGS.map(o => fetchOrg(o, headers)))).flat();
+      repos = all.map(r => ({
+        group: "Repos", name: `${r.owner.login}/${r.name}`, url: r.html_url,
+        tags: [r.private ? "private" : "public"], note: r.description || "", pushed: r.pushed_at || "",
+      })).sort((a, b) => b.pushed.localeCompare(a.pushed));
+      const c = { t: Date.now(), list: repos };
+      ls.set("repos", c); build(); repoStatus(c);
+    } catch (e) {
+      $msg.textContent = `Repos: ${e.message}${token ? "" : " — add a token for private repos and a higher rate limit"}`;
+    }
+  }
 
   const sorters = {
     default: (a, b) => a.i - b.i,
@@ -163,18 +221,19 @@
     Julia: `<svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="5" fill="#389826"/><circle cx="6.5" cy="17" r="5" fill="#cb3c33"/><circle cx="17.5" cy="17" r="5" fill="#9558b2"/></svg>`,
     Funding: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
   };
+  GROUP_ICONS.Repos = GROUP_ICONS.Code;
   const icon = name => GROUP_ICONS[name] ? `<span class="icon">${GROUP_ICONS[name]}</span>` : "";
 
   const card = (b, q) => `<a class="card g${b.g % 7}" href="${esc(b.url)}" target="_blank" rel="noopener">
       <span class="mono">${esc(b.name.trim()[0] || "?").toUpperCase()}</span>
-      <span class="meta"><span class="name">${hi(b.name, q)}</span><span class="sub">${hi(b.url, q)}</span></span>
+      <span class="meta"><span class="name">${hi(b.name, q)}</span><span class="sub">${hi(b.note || b.url, q)}</span></span>
     </a>`;
 
   function render() {
     const q = $q.value.trim().toLowerCase();
-    const hits = items.filter(b => !q || b.hay.includes(q)).sort(sorters[sortBy]);
+    const hits = items.filter(b => q ? b.hay.includes(q) : b.group !== "Repos").sort(sorters[sortBy]);
     const el = document.getElementById("out");
-    if (!items.length) { el.innerHTML = `<p class="empty">No data — check that <code>bookmarks-data.js</code> sits next to this file.</p>`; return; }
+    if (typeof BOOKMARKS === "undefined") { el.innerHTML = `<p class="empty">No data — check that <code>bookmarks-data.js</code> sits next to this file.</p>`; return; }
     if (!hits.length) { el.innerHTML = `<p class="empty">No matches for “${esc(q)}”.</p>`; return; }
     if (!grouped) { el.innerHTML = `<div class="grid">${hits.map(b => card(b, q)).join("")}</div>`; return; }
     const groups = [];
@@ -201,13 +260,20 @@
     render();
   });
   document.addEventListener("keydown", e => {
-    if (e.key === "/" && document.activeElement !== $q) { e.preventDefault(); $q.focus(); $q.select(); }
+    if (e.key === "/" && document.activeElement.tagName !== "INPUT") { e.preventDefault(); $q.focus(); $q.select(); }
     else if (e.key === "Escape") { $q.value = ""; render(); $q.blur(); }
     else if (e.key === "Enter" && document.activeElement === $q) {
       const first = document.querySelector("a.card"); if (first) first.click();
     }
   });
-  render();
+  document.getElementById("repos-refresh").addEventListener("click", e => { e.preventDefault(); loadRepos(true); });
+  $tokToggle.addEventListener("click", e => { e.preventDefault(); $tok.hidden = !$tok.hidden; if (!$tok.hidden) $tokIn.focus(); });
+  $tok.addEventListener("submit", e => {
+    e.preventDefault(); ls.set("gh_token", $tokIn.value.trim() || null); $tokIn.value = ""; $tok.hidden = true; loadRepos(true);
+  });
+  document.getElementById("tok-clear").addEventListener("click", () => { ls.set("gh_token", null); $tok.hidden = true; loadRepos(true); });
+  build();
+  loadRepos(false);
 </script>
 </body>
 </html>
