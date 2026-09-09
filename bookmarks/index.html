@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bookmarks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Palette and type from rp1-website src/styles/tokens.css */
+  :root {
+    --red-500: #c8202c; --red-600: #aa1b25;
+    --neutral-0: #ffffff; --neutral-50: #f7f7f8; --neutral-100: #eceded;
+    --neutral-200: #d9dadc; --neutral-300: #c0c2c4; --neutral-500: #87898c;
+    --neutral-600: #66686b; --neutral-800: #414042; --neutral-950: #1a1a1b;
+
+    --font-display: "Archivo", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --font-body: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 22px 24px 32px; background: var(--neutral-0); color: var(--neutral-800);
+    font: 400 14px/1.35 var(--font-body); -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1240px; margin: 0 auto; }
+
+  header { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 16px; }
+  h1 {
+    margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 1.5rem;
+    letter-spacing: -0.02em; line-height: 1.1; color: var(--neutral-950);
+  }
+  .spacer { flex: 1; }
+
+  input {
+    font: 400 14px var(--font-body); color: var(--neutral-800); background: var(--neutral-0);
+    border: 1px solid var(--neutral-200); border-radius: 7px; padding: 5px 9px; width: 250px;
+  }
+  input::placeholder { color: var(--neutral-500); }
+  input:focus { outline: 2px solid var(--red-500); outline-offset: -1px; border-color: var(--red-500); }
+
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .lbl {
+    font-family: var(--font-display); font-size: 10px; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--neutral-500);
+  }
+  .seg { display: inline-flex; border: 1px solid var(--neutral-200); border-radius: 7px; overflow: hidden; }
+  .seg button, .toggle {
+    font: 500 13px var(--font-body); color: var(--neutral-600); background: var(--neutral-0);
+    border: 0; padding: 6px 11px; cursor: pointer;
+  }
+  .seg button { border-left: 1px solid var(--neutral-200); }
+  .seg button:first-child { border-left: 0; }
+  .seg button:hover, .toggle:hover { background: var(--neutral-50); color: var(--neutral-950); }
+  .seg button.on, .toggle.on { background: var(--red-500); color: var(--neutral-0); }
+  .seg button.on:hover, .toggle.on:hover { background: var(--red-600); color: var(--neutral-0); }
+  .toggle { border: 1px solid var(--neutral-200); border-radius: 7px; }
+  .seg button:focus-visible, .toggle:focus-visible { outline: 2px solid var(--red-500); outline-offset: -2px; }
+
+  h2 {
+    display: flex; align-items: center; gap: 6px;
+    margin: 18px 0 7px; font-family: var(--font-display); font-size: 11px; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--neutral-600);
+  }
+  h2 .icon { flex: none; height: 15px; display: inline-flex; color: var(--c-key); }
+  h2 .icon svg, h2 .icon img { display: block; height: 100%; width: auto; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 6px; }
+  /* Group tints, cycled by group order. */
+  .g0 { --c-bg: #fdf0f1; --c-bd: #f1c7ca; --c-key: #c8202c; }
+  .g1 { --c-bg: #f2f4f7; --c-bd: #d8dee7; --c-key: #4f5c6b; }
+  .g2 { --c-bg: #edf6f4; --c-bd: #cbe4de; --c-key: #2b7a68; }
+  .g3 { --c-bg: #fdf4e8; --c-bd: #f2ddb8; --c-key: #b26a00; }
+  .g4 { --c-bg: #f1f2fb; --c-bd: #d5d8f0; --c-key: #4b52a8; }
+  .g5 { --c-bg: #f0f6ec; --c-bd: #d3e5c8; --c-key: #4a7c2f; }
+  .g6 { --c-bg: #f8f0f7; --c-bd: #e6cfe3; --c-key: #7a3b70; }
+
+  a.card {
+    display: flex; align-items: center; gap: 9px; padding: 7px 10px; text-decoration: none;
+    color: inherit; background: var(--c-bg); border: 1px solid var(--c-bd);
+    border-radius: 8px; transition: border-color .12s, box-shadow .12s, transform .12s;
+  }
+  a.card:hover, a.card:focus-visible {
+    border-color: var(--c-key); box-shadow: 0 4px 12px rgba(20,20,20,0.10);
+    transform: translateY(-1px); outline: none;
+  }
+  .mono {
+    flex: none; width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center;
+    font-family: var(--font-display); font-size: 12px; font-weight: 700;
+    color: var(--neutral-0); background: var(--c-key);
+  }
+  .meta { min-width: 0; display: flex; flex-direction: column; }
+  .name {
+    font-weight: 500; line-height: 1.25; color: var(--neutral-950);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .sub {
+    font-family: var(--font-mono); font-size: 10px; line-height: 1.3; color: var(--neutral-500);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  mark { background: rgba(200,32,44,0.16); color: inherit; border-radius: 2px; }
+  .empty { color: var(--neutral-500); padding: 32px 0; }
+  .hint { margin-top: 22px; }
+  kbd {
+    font-family: var(--font-mono); font-size: 11px; background: var(--neutral-50);
+    border: 1px solid var(--neutral-200); border-radius: 4px; padding: 1px 5px; color: var(--neutral-600);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Bookmarks</h1>
+    <span class="spacer"></span>
+    <input id="q" type="search" placeholder="Filter…  ( / )" autocomplete="off" spellcheck="false">
+    <div class="field">
+      <span class="lbl" id="sort-lbl">Sort By:</span>
+      <div class="seg" id="sort" role="group" aria-labelledby="sort-lbl">
+        <button type="button" data-sort="default" class="on">File</button>
+        <button type="button" data-sort="name">Name</button>
+        <button type="button" data-sort="domain">Domain</button>
+      </div>
+    </div>
+    <button type="button" id="grouped" class="toggle on" aria-pressed="true">Grouped</button>
+  </header>
+  <div id="out"></div>
+  <p class="sub hint"><kbd>/</kbd> filter &nbsp; <kbd>enter</kbd> open first &nbsp; <kbd>esc</kbd> clear</p>
+</div>
+
+<script src="bookmarks-data.js"></script>
+<script>
+  const $q = document.getElementById("q"), $sort = document.getElementById("sort"), $grouped = document.getElementById("grouped");
+  let sortBy = "default", grouped = true;
+  const host = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
+  const esc = s => s.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  const hi = (s, q) => {
+    const t = esc(s); if (!q) return t;
+    const i = t.toLowerCase().indexOf(q); if (i < 0) return t;
+    return t.slice(0, i) + "<mark>" + t.slice(i, i + q.length) + "</mark>" + t.slice(i + q.length);
+  };
+
+  const order = [];
+  const items = (typeof BOOKMARKS === "undefined" ? [] : BOOKMARKS).map((b, i) => ({
+    ...b, i, group: b.group || "Other", domain: host(b.url),
+    g: (g => (order.includes(g) || order.push(g), order.indexOf(g)))(b.group || "Other"),
+    hay: [b.name, b.url, b.group, ...(b.tags || []), b.note || ""].join(" ").toLowerCase(),
+  }));
+
+  const sorters = {
+    default: (a, b) => a.i - b.i,
+    name: (a, b) => a.name.localeCompare(b.name),
+    domain: (a, b) => a.domain.localeCompare(b.domain) || a.name.localeCompare(b.name),
+  };
+
+  // Group header icons, keyed by group name. Generic ones use currentColor (the group's key tint).
+  const GROUP_ICONS = {
+    Daily: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>`,
+    AI: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 2l2.2 6.8L19 11l-6.8 2.2L10 20l-2.2-6.8L1 11l6.8-2.2z"/><path d="M19 14l1 3 3 1-3 1-1 3-1-3-3-1 3-1z"/></svg>`,
+    RP1: `<img src="rp1-mark.png" alt="">`,
+    Code: `<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>`,
+    Julia: `<svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="5" fill="#389826"/><circle cx="6.5" cy="17" r="5" fill="#cb3c33"/><circle cx="17.5" cy="17" r="5" fill="#9558b2"/></svg>`,
+    Funding: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
+  };
+  const icon = name => GROUP_ICONS[name] ? `<span class="icon">${GROUP_ICONS[name]}</span>` : "";
+
+  const card = (b, q) => `<a class="card g${b.g % 7}" href="${esc(b.url)}" target="_blank" rel="noopener">
+      <span class="mono">${esc(b.name.trim()[0] || "?").toUpperCase()}</span>
+      <span class="meta"><span class="name">${hi(b.name, q)}</span><span class="sub">${hi(b.url, q)}</span></span>
+    </a>`;
+
+  function render() {
+    const q = $q.value.trim().toLowerCase();
+    const hits = items.filter(b => !q || b.hay.includes(q)).sort(sorters[sortBy]);
+    const el = document.getElementById("out");
+    if (!items.length) { el.innerHTML = `<p class="empty">No data — check that <code>bookmarks-data.js</code> sits next to this file.</p>`; return; }
+    if (!hits.length) { el.innerHTML = `<p class="empty">No matches for “${esc(q)}”.</p>`; return; }
+    if (!grouped) { el.innerHTML = `<div class="grid">${hits.map(b => card(b, q)).join("")}</div>`; return; }
+    const groups = [];
+    for (const b of hits) {
+      const g = groups.find(g => g.name === b.group) || (groups.push({ name: b.group, rows: [] }), groups.at(-1));
+      g.rows.push(b);
+    }
+    el.innerHTML = groups.map(g =>
+      `<h2 class="g${g.rows[0].g % 7}">${icon(g.name)}${esc(g.name)}</h2><div class="grid">${g.rows.map(b => card(b, q)).join("")}</div>`
+    ).join("");
+  }
+
+  $q.addEventListener("input", render);
+  $sort.addEventListener("click", e => {
+    const btn = e.target.closest("button[data-sort]"); if (!btn) return;
+    sortBy = btn.dataset.sort;
+    $sort.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === btn));
+    render();
+  });
+  $grouped.addEventListener("click", () => {
+    grouped = !grouped;
+    $grouped.classList.toggle("on", grouped);
+    $grouped.setAttribute("aria-pressed", String(grouped));
+    render();
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key === "/" && document.activeElement !== $q) { e.preventDefault(); $q.focus(); $q.select(); }
+    else if (e.key === "Escape") { $q.value = ""; render(); $q.blur(); }
+    else if (e.key === "Enter" && document.activeElement === $q) {
+      const first = document.querySelector("a.card"); if (first) first.click();
+    }
+  });
+  render();
+</script>
+</body>
+</html>
