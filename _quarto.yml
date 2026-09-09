@@ -1,9 +1,12 @@
 project:
   type: website
   output-dir: _site
+  resources:
+    - bookmarks
 
 website:
   title: "Josh Day"
+  site-url: https://joshday.github.io
   navbar:
     left:
       - href: index.qmd
