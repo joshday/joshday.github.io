@@ -41,12 +41,6 @@
   input::placeholder { color: var(--neutral-500); }
   input:focus { outline: 2px solid var(--red-500); outline-offset: -1px; border-color: var(--red-500); }
 
-  .toggle {
-    font: 500 13px var(--font-body); color: var(--neutral-600); background: var(--neutral-0);
-    border: 1px solid var(--neutral-200); border-radius: 7px; padding: 6px 11px; cursor: pointer;
-  }
-  .toggle:hover { background: var(--neutral-50); color: var(--neutral-950); }
-  .toggle:focus-visible { outline: 2px solid var(--red-500); outline-offset: -2px; }
 
   h2 {
     display: flex; align-items: center; gap: 6px;
@@ -94,8 +88,6 @@
   .hint { margin-top: 22px; }
   #repos a { color: var(--red-500); text-decoration: none; }
   #repos a:hover { text-decoration: underline; }
-  #tok { display: flex; gap: 6px; margin-top: 8px; }
-  #tok input { width: 420px; }
   kbd {
     font-family: var(--font-mono); font-size: 11px; background: var(--neutral-50);
     border: 1px solid var(--neutral-200); border-radius: 4px; padding: 1px 5px; color: var(--neutral-600);
@@ -111,18 +103,13 @@
   </header>
   <div id="out"></div>
   <p class="sub hint"><kbd>/</kbd> filter &nbsp; <kbd>enter</kbd> open first &nbsp; <kbd>esc</kbd> clear</p>
-  <p class="sub" id="repos"><span id="repos-msg">Loading repos…</span> &nbsp;·&nbsp; <a href="#" id="repos-refresh">refresh</a> &nbsp;·&nbsp; <a href="#" id="tok-toggle">add token</a></p>
-  <form id="tok" hidden>
-    <input id="tok-in" type="password" placeholder="GitHub token (classic, repo scope) — stored in this browser only" autocomplete="off">
-    <button type="submit" class="toggle">Save</button>
-    <button type="button" class="toggle" id="tok-clear">Clear</button>
-  </form>
+  <p class="sub" id="repos"><span id="repos-msg">Loading repos…</span> &nbsp;·&nbsp; <a href="#" id="repos-refresh">refresh</a></p>
 </div>
 
 <script src="bookmarks-data.js"></script>
 <script>
   const $q = document.getElementById("q");
-  const $msg = document.getElementById("repos-msg"), $tok = document.getElementById("tok"), $tokIn = document.getElementById("tok-in"), $tokToggle = document.getElementById("tok-toggle");
+  const $msg = document.getElementById("repos-msg");
   const esc = s => s.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
   const hi = (s, q) => {
     const t = esc(s); if (!q) return t;
@@ -131,7 +118,7 @@
   };
 
   // GitHub repos across ORGS, merged into the list as group "Repos" (shown only while filtering).
-  // Cached in localStorage for REPO_TTL; a token (also localStorage) adds private repos.
+  // Public repos only (unauthenticated API), cached in localStorage for REPO_TTL.
   const ORGS = ["RallypointOne", "DerangedIons", "NSF-ASCEND-Engine"];
   const REPO_TTL = 60 * 60 * 1000;
   const ls = {
@@ -151,36 +138,33 @@
     render();
   }
 
-  async function fetchOrg(org, headers) {
+  async function fetchOrg(org) {
     const out = [];
     for (let page = 1; ; page++) {
-      const r = await fetch(`https://api.github.com/orgs/${org}/repos?per_page=100&page=${page}`, { headers });
-      if (!r.ok) throw new Error(`${org}: HTTP ${r.status}${r.status === 401 ? " (bad token)" : ""}`);
+      const r = await fetch(`https://api.github.com/orgs/${org}/repos?per_page=100&page=${page}`);
+      if (!r.ok) throw new Error(`${org}: HTTP ${r.status}`);
       const j = await r.json(); out.push(...j);
       if (j.length < 100) return out;
     }
   }
   function repoStatus(c) {
-    const priv = c.list.filter(r => r.tags.includes("private")).length, m = Math.round((Date.now() - c.t) / 60000);
-    $msg.textContent = `${c.list.length} repos across ${ORGS.join(", ")} (${priv} private) · type to search · updated ${m < 1 ? "just now" : m + "m ago"}`;
+    const m = Math.round((Date.now() - c.t) / 60000);
+    $msg.textContent = `${c.list.length} public repos across ${ORGS.join(", ")} · type to search · updated ${m < 1 ? "just now" : m + "m ago"}`;
   }
   async function loadRepos(force) {
-    const cache = ls.get("repos"), token = ls.get("gh_token");
-    $tokToggle.textContent = token ? "token ✓" : "add token";
+    const cache = ls.get("repos");
     if (cache) { repos = cache.list; build(); }
     if (cache && !force && Date.now() - cache.t < REPO_TTL) return repoStatus(cache);
     $msg.textContent = "Loading repos…";
     try {
-      const headers = token ? { Authorization: "Bearer " + token } : {};
-      const all = (await Promise.all(ORGS.map(o => fetchOrg(o, headers)))).flat();
+      const all = (await Promise.all(ORGS.map(fetchOrg))).flat();
       repos = all.map(r => ({
-        group: "Repos", name: `${r.owner.login}/${r.name}`, url: r.html_url,
-        tags: [r.private ? "private" : "public"], note: r.description || "", pushed: r.pushed_at || "",
+        group: "Repos", name: `${r.owner.login}/${r.name}`, url: r.html_url, note: r.description || "", pushed: r.pushed_at || "",
       })).sort((a, b) => b.pushed.localeCompare(a.pushed));
       const c = { t: Date.now(), list: repos };
       ls.set("repos", c); build(); repoStatus(c);
     } catch (e) {
-      $msg.textContent = `Repos: ${e.message}${token ? "" : " — add a token for private repos and a higher rate limit"}`;
+      $msg.textContent = `Repos: ${e.message}`;
     }
   }
 
@@ -219,18 +203,13 @@
 
   $q.addEventListener("input", render);
   document.addEventListener("keydown", e => {
-    if (e.key === "/" && document.activeElement.tagName !== "INPUT") { e.preventDefault(); $q.focus(); $q.select(); }
+    if (e.key === "/" && document.activeElement !== $q) { e.preventDefault(); $q.focus(); $q.select(); }
     else if (e.key === "Escape") { $q.value = ""; render(); $q.blur(); }
     else if (e.key === "Enter" && document.activeElement === $q) {
       const first = document.querySelector("a.card"); if (first) first.click();
     }
   });
   document.getElementById("repos-refresh").addEventListener("click", e => { e.preventDefault(); loadRepos(true); });
-  $tokToggle.addEventListener("click", e => { e.preventDefault(); $tok.hidden = !$tok.hidden; if (!$tok.hidden) $tokIn.focus(); });
-  $tok.addEventListener("submit", e => {
-    e.preventDefault(); ls.set("gh_token", $tokIn.value.trim() || null); $tokIn.value = ""; $tok.hidden = true; loadRepos(true);
-  });
-  document.getElementById("tok-clear").addEventListener("click", () => { ls.set("gh_token", null); $tok.hidden = true; loadRepos(true); });
   build();
   loadRepos(false);
 </script>
