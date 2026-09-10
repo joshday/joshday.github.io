@@ -41,23 +41,12 @@
   input::placeholder { color: var(--neutral-500); }
   input:focus { outline: 2px solid var(--red-500); outline-offset: -1px; border-color: var(--red-500); }
 
-  .field { display: flex; flex-direction: column; gap: 4px; }
-  .lbl {
-    font-family: var(--font-display); font-size: 10px; font-weight: 600;
-    letter-spacing: 0.08em; text-transform: uppercase; color: var(--neutral-500);
-  }
-  .seg { display: inline-flex; border: 1px solid var(--neutral-200); border-radius: 7px; overflow: hidden; }
-  .seg button, .toggle {
+  .toggle {
     font: 500 13px var(--font-body); color: var(--neutral-600); background: var(--neutral-0);
-    border: 0; padding: 6px 11px; cursor: pointer;
+    border: 1px solid var(--neutral-200); border-radius: 7px; padding: 6px 11px; cursor: pointer;
   }
-  .seg button { border-left: 1px solid var(--neutral-200); }
-  .seg button:first-child { border-left: 0; }
-  .seg button:hover, .toggle:hover { background: var(--neutral-50); color: var(--neutral-950); }
-  .seg button.on, .toggle.on { background: var(--red-500); color: var(--neutral-0); }
-  .seg button.on:hover, .toggle.on:hover { background: var(--red-600); color: var(--neutral-0); }
-  .toggle { border: 1px solid var(--neutral-200); border-radius: 7px; }
-  .seg button:focus-visible, .toggle:focus-visible { outline: 2px solid var(--red-500); outline-offset: -2px; }
+  .toggle:hover { background: var(--neutral-50); color: var(--neutral-950); }
+  .toggle:focus-visible { outline: 2px solid var(--red-500); outline-offset: -2px; }
 
   h2 {
     display: flex; align-items: center; gap: 6px;
@@ -119,15 +108,6 @@
     <h1>Bookmarks</h1>
     <span class="spacer"></span>
     <input id="q" type="search" placeholder="Filter…  ( / )" autocomplete="off" spellcheck="false">
-    <div class="field">
-      <span class="lbl" id="sort-lbl">Sort By:</span>
-      <div class="seg" id="sort" role="group" aria-labelledby="sort-lbl">
-        <button type="button" data-sort="default" class="on">File</button>
-        <button type="button" data-sort="name">Name</button>
-        <button type="button" data-sort="domain">Domain</button>
-      </div>
-    </div>
-    <button type="button" id="grouped" class="toggle on" aria-pressed="true">Grouped</button>
   </header>
   <div id="out"></div>
   <p class="sub hint"><kbd>/</kbd> filter &nbsp; <kbd>enter</kbd> open first &nbsp; <kbd>esc</kbd> clear</p>
@@ -141,10 +121,8 @@
 
 <script src="bookmarks-data.js"></script>
 <script>
-  const $q = document.getElementById("q"), $sort = document.getElementById("sort"), $grouped = document.getElementById("grouped");
+  const $q = document.getElementById("q");
   const $msg = document.getElementById("repos-msg"), $tok = document.getElementById("tok"), $tokIn = document.getElementById("tok-in"), $tokToggle = document.getElementById("tok-toggle");
-  let sortBy = "default", grouped = true;
-  const host = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
   const esc = s => s.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
   const hi = (s, q) => {
     const t = esc(s); if (!q) return t;
@@ -165,8 +143,8 @@
   const order = [];
   let items = [];
   function build() {
-    items = [...(typeof BOOKMARKS === "undefined" ? [] : BOOKMARKS), ...repos].map((b, i) => ({
-      ...b, i, group: b.group || "Other", domain: host(b.url),
+    items = [...(typeof BOOKMARKS === "undefined" ? [] : BOOKMARKS), ...repos].map(b => ({
+      ...b, group: b.group || "Other",
       g: (g => (order.includes(g) || order.push(g), order.indexOf(g)))(b.group || "Other"),
       hay: [b.name, b.url, b.group, ...(b.tags || []), b.note || ""].join(" ").toLowerCase(),
     }));
@@ -206,12 +184,6 @@
     }
   }
 
-  const sorters = {
-    default: (a, b) => a.i - b.i,
-    name: (a, b) => a.name.localeCompare(b.name),
-    domain: (a, b) => a.domain.localeCompare(b.domain) || a.name.localeCompare(b.name),
-  };
-
   // Group header icons, keyed by group name. Generic ones use currentColor (the group's key tint).
   const GROUP_ICONS = {
     Daily: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>`,
@@ -231,11 +203,10 @@
 
   function render() {
     const q = $q.value.trim().toLowerCase();
-    const hits = items.filter(b => q ? b.hay.includes(q) : b.group !== "Repos").sort(sorters[sortBy]);
+    const hits = items.filter(b => q ? b.hay.includes(q) : b.group !== "Repos");
     const el = document.getElementById("out");
     if (typeof BOOKMARKS === "undefined") { el.innerHTML = `<p class="empty">No data — check that <code>bookmarks-data.js</code> sits next to this file.</p>`; return; }
     if (!hits.length) { el.innerHTML = `<p class="empty">No matches for “${esc(q)}”.</p>`; return; }
-    if (!grouped) { el.innerHTML = `<div class="grid">${hits.map(b => card(b, q)).join("")}</div>`; return; }
     const groups = [];
     for (const b of hits) {
       const g = groups.find(g => g.name === b.group) || (groups.push({ name: b.group, rows: [] }), groups.at(-1));
@@ -247,18 +218,6 @@
   }
 
   $q.addEventListener("input", render);
-  $sort.addEventListener("click", e => {
-    const btn = e.target.closest("button[data-sort]"); if (!btn) return;
-    sortBy = btn.dataset.sort;
-    $sort.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === btn));
-    render();
-  });
-  $grouped.addEventListener("click", () => {
-    grouped = !grouped;
-    $grouped.classList.toggle("on", grouped);
-    $grouped.setAttribute("aria-pressed", String(grouped));
-    render();
-  });
   document.addEventListener("keydown", e => {
     if (e.key === "/" && document.activeElement.tagName !== "INPUT") { e.preventDefault(); $q.focus(); $q.select(); }
     else if (e.key === "Escape") { $q.value = ""; render(); $q.blur(); }
